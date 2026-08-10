@@ -18,6 +18,15 @@ test("public registry matches all 111 pumping records", async () => {
   assert.equal(new Set(wellNumbers).size, 111);
   assert.deepEqual(new Set(wellNumbers), new Set(pumpingNumbers));
   assert.equal(wells.filter((well) => well.latitude == null || well.longitude == null).length, 0);
+  assert.equal(
+    wells.filter((well) => !(well.attachments || []).some((file) => file.mimeType === "application/pdf")).length,
+    0
+  );
+  for (const well of wells) {
+    const pdf = well.attachments.find((file) => file.mimeType === "application/pdf");
+    const content = await readFile(new URL(`../docs/data/attachments/${pdf.storedName}`, import.meta.url));
+    assert.equal(content.subarray(0, 4).toString("ascii"), "%PDF", `${well.waterRightNo} 水權狀檔案無效`);
+  }
   assert.equal(wellNumbers.includes("B0112603"), true);
   assert.equal(wellNumbers.includes("B1140034"), true);
   assert.equal(wellNumbers.includes("K0124336"), true);

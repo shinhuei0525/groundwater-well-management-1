@@ -204,6 +204,10 @@ def unique_images(images):
     return result
 
 
+def image_digests(images):
+    return [hashlib.sha256(image["data"]).hexdigest() for image in images]
+
+
 def existing_photo_data(well):
     result = []
     for photo in well.get("photos") or []:
@@ -222,6 +226,8 @@ def write_photos(well, new_images, timestamp, apply_changes):
     if len(combined) < len(old_images):
         combined = unique_images(combined + old_images)
     if not combined:
+        return well.get("photos") or []
+    if image_digests(combined) == image_digests(old_images):
         return well.get("photos") or []
     if not apply_changes:
         return well.get("photos") or []
@@ -258,7 +264,31 @@ def find_water_right_pdf(root, station, name):
     if exact.exists():
         return exact
     matches = list(station_dir.glob(f"*{name}*.pdf"))
-    return matches[0] if matches else None
+    if matches:
+        return matches[0]
+
+    def normalized_pdf_name(value):
+        text = Path(value).stem
+        for chinese, arabic in (
+            ("十八", "18"), ("十七", "17"), ("十六", "16"), ("十五", "15"),
+            ("十四", "14"), ("十三", "13"), ("十二", "12"), ("十一", "11"),
+            ("十九", "19"), ("二十", "20"), ("十", "10"),
+            ("九", "9"), ("八", "8"), ("七", "7"), ("六", "6"),
+            ("五", "5"), ("四", "4"), ("三", "3"), ("二", "2"), ("一", "1"),
+        ):
+            text = text.replace(chinese, arabic)
+        text = re.sub(r"[（(](?:目前)?申請中[）)]|[（(]正本借出(?:中)?[）)]", "", text)
+        text = text.replace(f"{station}站", "").replace(f"{station}圳", "")
+        text = text.replace(f"{station}-", "").replace("抽水井", "井").replace("公井", "井")
+        return re.sub(r"[\s_-]", "", text)
+
+    target = normalized_pdf_name(name)
+    normalized_matches = [
+        candidate
+        for candidate in station_dir.glob("*.pdf")
+        if normalized_pdf_name(candidate.name) == target
+    ]
+    return normalized_matches[0] if len(normalized_matches) == 1 else None
 
 
 def update_history(current_numbers):
@@ -380,7 +410,7 @@ def main():
         well["photos"] = write_photos(
             well, workbook_photos.get(number) or [], timestamp, args.apply
         )
-        if is_new and not well.get("attachments"):
+        if not well.get("attachments"):
             pdf = find_water_right_pdf(args.water_right_root, source["station"], source["name"])
             if pdf:
                 well["attachments"] = [

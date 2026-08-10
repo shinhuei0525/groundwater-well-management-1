@@ -3,21 +3,22 @@
   "title": "本處抽水井歷年每月抽水量",
   "source": "https://wr.wra.gov.tw/WRTInfoFrontEnd/WaterRecord/WaterSearch",
   "sourcePdf": "林雅婷-用水紀錄表填報090604.pdf",
-  "waterRightCount": 107,
+  "waterRightCount": 106,
   "wellCount": 111,
-  "recordCount": 825,
-  "monthlyRecordCount": 9900,
+  "recordCount": 824,
+  "monthlyRecordCount": 9888,
   "yearFrom": 100,
   "yearTo": 115,
   "authorityCounts": {
-    "臺中市政府": 92,
+    "臺中市政府": 91,
     "苗栗縣政府": 15
   },
   "emptyWaterRightNos": [
     "B1150050",
     "B1150051",
     "B1150052",
-    "B1150103"
+    "B1150103",
+    "K0124336"
   ],
   "anomalyRecordCount": 9,
   "records": [
@@ -16298,29 +16299,6 @@
         null,
         null,
         null,
-        0,
-        0,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "sourceTotalM3": 0,
-      "anomalies": []
-    },
-    {
-      "waterRightNo": "B1150091",
-      "wellName": "豐原區南陽段175地號抽水井",
-      "station": "八寶",
-      "authority": "臺中市政府",
-      "yearMinguo": 115,
-      "monthlyM3": [
-        null,
-        null,
-        null,
-        0,
-        0,
         0,
         0,
         null,

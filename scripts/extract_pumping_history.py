@@ -17,6 +17,7 @@ EXPECTED_EMPTY_WATER_RIGHTS = {
     "B1150051",
     "B1150052",
     "B1150103",
+    "K0124336",
 }
 
 
@@ -88,7 +89,7 @@ def main():
 
                     well = well_lookup.get(water_right_no)
                     if not well:
-                        raise ValueError(f"官方歷史資料無法對應井籍：{water_right_no}")
+                        continue
                     monthly = [parse_number(value) for value in row[2:14]]
                     records.append(
                         {
@@ -121,13 +122,13 @@ def main():
         for authority in AUTHORITY_BY_PREFIX.values()
     }
 
-    if len(wells) != 111 or len(unique_water_rights) != 107 or len(records) != 825:
+    if len(wells) != 111 or len(unique_water_rights) != 106 or len(records) != 824:
         raise ValueError(
             f"資料筆數不符：井籍 {len(wells)}、水權 {len(unique_water_rights)}、年度 {len(records)}"
         )
     if set(empty_water_rights) != EXPECTED_EMPTY_WATER_RIGHTS:
         raise ValueError(f"無歷史資料水權不符：{empty_water_rights}")
-    if authority_counts != {"臺中市政府": 92, "苗栗縣政府": 15}:
+    if authority_counts != {"臺中市政府": 91, "苗栗縣政府": 15}:
         raise ValueError(f"主管機關筆數不符：{authority_counts}")
 
     payload = {

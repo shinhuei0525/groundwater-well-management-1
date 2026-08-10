@@ -5,7 +5,7 @@ const [inputPath, outputPath, previewDir] = process.argv.slice(2);
 const payload = JSON.parse(await fs.readFile(inputPath, "utf8"));
 const reportTitle = "本處抽水井歷年每月抽水量";
 
-if (payload.waterRightCount !== 107 || payload.recordCount !== 825 || payload.monthlyRecordCount !== 9900) {
+if (payload.waterRightCount !== 106 || payload.recordCount !== 824 || payload.monthlyRecordCount !== 9888) {
   throw new Error("歷史資料筆數驗證失敗");
 }
 if (payload.authorityCounts?.臺中市政府 !== 92 || payload.authorityCounts?.苗栗縣政府 !== 15) {
@@ -45,7 +45,7 @@ summary.getRange("A4:A11").format = { fill: "#DDEDE7", font: { bold: true, color
 summary.getRange("A4:B11").format.borders = { preset: "outside", style: "thin", color: "#A9C6BB" };
 summary.getRange("B4:B9").format.numberFormat = "#,##0";
 summary.mergeCells("A13:F13");
-summary.getRange("A13").values = [["說明：官方空白值標示為「未填報」；官方數值0保留為「已填報、抽水量0」。4口新井未出現在官方歷史報表，不建立虛擬月份資料。"]];
+summary.getRange("A13").values = [["說明：官方空白值標示為「未填報」；官方數值0保留為「已填報、抽水量0」。5口井未出現在官方歷史報表，不建立虛擬月份資料。"]];
 summary.getRange("A13:F13").format = { fill: "#FFF4D6", font: { color: "#66501A", size: 10 }, wrapText: true };
 summary.getRange("A13:F13").format.rowHeight = 34;
 summary.getRange("A:A").format.columnWidth = 22;

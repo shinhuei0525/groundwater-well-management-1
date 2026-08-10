@@ -17,24 +17,25 @@ test("public registry matches all 111 pumping records", async () => {
   assert.equal(pumping.records.length, 111);
   assert.equal(new Set(wellNumbers).size, 111);
   assert.deepEqual(new Set(wellNumbers), new Set(pumpingNumbers));
-  assert.equal(wells.filter((well) => well.latitude == null || well.longitude == null).length, 15);
+  assert.equal(wells.filter((well) => well.latitude == null || well.longitude == null).length, 0);
   assert.equal(wellNumbers.includes("B0112603"), true);
   assert.equal(wellNumbers.includes("B1140034"), true);
-  assert.equal(wellNumbers.includes("K0124336"), false);
+  assert.equal(wellNumbers.includes("K0124336"), true);
+  assert.equal(wellNumbers.includes("B1150091"), false);
 });
 
-test("official pumping history covers 107 wells and leaves four new wells empty", async () => {
+test("official pumping history covers 106 current wells and leaves five wells empty", async () => {
   const wells = await readJson("../docs/data/wells.json");
   const history = await readJson("../docs/data/pumping-history.json");
   const historyNumbers = new Set(history.records.map((record) => record.waterRightNo));
-  const expectedEmpty = ["B1150050", "B1150051", "B1150052", "B1150103"];
+  const expectedEmpty = ["B1150050", "B1150051", "B1150052", "B1150103", "K0124336"];
 
   assert.equal(wells.length, 111);
-  assert.equal(history.waterRightCount, 107);
-  assert.equal(history.recordCount, 825);
-  assert.equal(history.monthlyRecordCount, 9900);
-  assert.deepEqual(history.authorityCounts, { 臺中市政府: 92, 苗栗縣政府: 15 });
-  assert.equal(history.records.filter((record) => record.authority === "臺中市政府").length, 709);
+  assert.equal(history.waterRightCount, 106);
+  assert.equal(history.recordCount, 824);
+  assert.equal(history.monthlyRecordCount, 9888);
+  assert.deepEqual(history.authorityCounts, { 臺中市政府: 91, 苗栗縣政府: 15 });
+  assert.equal(history.records.filter((record) => record.authority === "臺中市政府").length, 708);
   assert.equal(history.records.filter((record) => record.authority === "苗栗縣政府").length, 116);
   assert.equal(new Set(history.records.filter((record) => record.waterRightNo.startsWith("K")).map((record) => record.waterRightNo)).size, 15);
   assert.deepEqual(history.emptyWaterRightNos, expectedEmpty);

@@ -772,8 +772,21 @@ textarea {
 .history-table {
   width: 100%;
   min-width: 620px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+.history-month-column {
+  width: 16%;
+}
+
+.history-value-column {
+  width: 29%;
+}
+
+.history-status-column {
+  width: 26%;
 }
 
 .history-table th,

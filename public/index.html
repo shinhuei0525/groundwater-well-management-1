@@ -6,7 +6,7 @@
     <meta name="description" content="農業部農田水利署臺中管理處地下水井公開查詢系統">
     <title>地下水井管理系統</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=20260810-2">
+    <link rel="stylesheet" href="styles.css?v=20260810-3">
   </head>
   <body>
     <header class="topbar">
@@ -151,7 +151,13 @@
       </section>
       <div class="history-table-wrap">
         <table class="history-table">
-          <thead><tr><th>月份</th><th>抽水量（m³）</th><th title="依水權登記量及當月天數換算">水權量（m³）</th><th>填報狀態</th></tr></thead>
+          <colgroup>
+            <col class="history-month-column">
+            <col class="history-value-column">
+            <col class="history-value-column">
+            <col class="history-status-column">
+          </colgroup>
+          <thead><tr><th>月份</th><th class="number-cell">抽水量（m³）</th><th class="number-cell" title="依水權登記量及當月天數換算">水權量（m³）</th><th>填報狀態</th></tr></thead>
           <tbody id="pumpingHistoryRows"></tbody>
         </table>
       </div>
@@ -164,6 +170,6 @@
     </dialog>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js?v=20260810-2" type="module"></script>
+    <script src="app.js?v=20260810-3" type="module"></script>
   </body>
 </html>

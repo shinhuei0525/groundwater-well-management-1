@@ -59,6 +59,7 @@ test("history table shows the monthly water-right volume", async () => {
   ]);
 
   assert.match(html, /水權量（m³）/);
+  assert.match(html, /<col class="history-value-column">/);
   assert.match(app, /calculateMonthlyWaterRight/);
   assert.match(app, /registeredFlowCms \* 86400 \* daysInMonth/);
 });

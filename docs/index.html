@@ -6,7 +6,7 @@
     <meta name="description" content="農業部農田水利署臺中管理處地下水井公開查詢系統">
     <title>地下水井管理系統</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=20260805-1">
+    <link rel="stylesheet" href="styles.css?v=20260810-2">
   </head>
   <body>
     <header class="topbar">
@@ -132,6 +132,31 @@
       <span>地下水井管理系統｜資料內容以管理處正式資料為準</span>
     </footer>
 
+    <dialog id="pumpingHistoryDialog" class="history-dialog" aria-labelledby="pumpingHistoryTitle">
+      <div class="history-dialog-head">
+        <div>
+          <span class="section-kicker">歷年每月抽水量</span>
+          <h2 id="pumpingHistoryTitle"></h2>
+        </div>
+        <button type="button" id="pumpingHistoryClose" class="dialog-close" aria-label="關閉">&times;</button>
+      </div>
+      <div class="history-toolbar">
+        <label for="pumpingHistoryYear">查詢年度</label>
+        <select id="pumpingHistoryYear"></select>
+      </div>
+      <div id="pumpingHistorySummary" class="history-summary"></div>
+      <section class="history-chart-section" aria-labelledby="historyChartTitle">
+        <h3 id="historyChartTitle">各月抽水量</h3>
+        <div id="pumpingHistoryChart" class="history-chart"></div>
+      </section>
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead><tr><th>月份</th><th>抽水量（m³）</th><th title="依水權登記量及當月天數換算">水權量（m³）</th><th>填報狀態</th></tr></thead>
+          <tbody id="pumpingHistoryRows"></tbody>
+        </table>
+      </div>
+    </dialog>
+
     <dialog id="photoLightbox" class="photo-lightbox" aria-labelledby="photoLightboxCaption">
       <button type="button" id="photoLightboxClose" class="photo-lightbox-close" aria-label="關閉">&times;</button>
       <img id="photoLightboxImage" alt="">
@@ -139,6 +164,6 @@
     </dialog>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js?v=20260805-1" type="module"></script>
+    <script src="app.js?v=20260810-2" type="module"></script>
   </body>
 </html>

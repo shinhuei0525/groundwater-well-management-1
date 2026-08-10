@@ -22,3 +22,43 @@ test("public registry matches all 111 pumping records", async () => {
   assert.equal(wellNumbers.includes("B1140034"), true);
   assert.equal(wellNumbers.includes("K0124336"), false);
 });
+
+test("official pumping history covers 107 wells and leaves four new wells empty", async () => {
+  const wells = await readJson("../docs/data/wells.json");
+  const history = await readJson("../docs/data/pumping-history.json");
+  const historyNumbers = new Set(history.records.map((record) => record.waterRightNo));
+  const expectedEmpty = ["B1150050", "B1150051", "B1150052", "B1150103"];
+
+  assert.equal(wells.length, 111);
+  assert.equal(history.waterRightCount, 107);
+  assert.equal(history.recordCount, 825);
+  assert.equal(history.monthlyRecordCount, 9900);
+  assert.deepEqual(history.authorityCounts, { 臺中市政府: 92, 苗栗縣政府: 15 });
+  assert.equal(history.records.filter((record) => record.authority === "臺中市政府").length, 709);
+  assert.equal(history.records.filter((record) => record.authority === "苗栗縣政府").length, 116);
+  assert.equal(new Set(history.records.filter((record) => record.waterRightNo.startsWith("K")).map((record) => record.waterRightNo)).size, 15);
+  assert.deepEqual(history.emptyWaterRightNos, expectedEmpty);
+  assert.deepEqual(wells.map((well) => well.waterRightNo).filter((number) => !historyNumbers.has(number)).sort(), expectedEmpty);
+  assert.equal(history.records.some((record) => record.monthlyM3.some((value) => value === 0)), true);
+  assert.equal(history.records.some((record) => record.monthlyM3.some((value) => value == null)), true);
+  assert.equal(history.anomalyRecordCount, 9);
+  assert.deepEqual(
+    history.records.find((record) => record.waterRightNo === "K0124239" && record.yearMinguo === 114).anomalies,
+    [{ month: 11, reasons: ["單月值明顯高於同年度其他月份"] }]
+  );
+  assert.deepEqual(
+    history.records.find((record) => record.waterRightNo === "B1150050"),
+    undefined
+  );
+});
+
+test("history table shows the monthly water-right volume", async () => {
+  const [html, app] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(html, /水權量（m³）/);
+  assert.match(app, /calculateMonthlyWaterRight/);
+  assert.match(app, /registeredFlowCms \* 86400 \* daysInMonth/);
+});

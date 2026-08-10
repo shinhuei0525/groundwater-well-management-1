@@ -6,11 +6,15 @@ const state = {
   map: null,
   markers: new Map(),
   activeWell: null,
+  pumpingHistory: new Map(),
+  pumpingHistoryLoaded: false,
+  activeHistoryWaterRightNo: "",
   expiringOnly: false
 };
 
 const STATIC_MODE = location.hostname.endsWith("github.io") || location.protocol === "file:";
 let staticWellsCache = null;
+let pumpingHistoryPromise = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -73,6 +77,34 @@ async function loadStaticWells() {
     staticWellsCache = await response.json();
   }
   return staticWellsCache;
+}
+
+async function loadPumpingHistory() {
+  if (!pumpingHistoryPromise) {
+    pumpingHistoryPromise = fetch(`data/pumping-history.json?v=${Date.now()}`, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("無法讀取歷史抽水資料");
+        return response.json();
+      })
+      .then((payload) => {
+        const grouped = new Map();
+        for (const record of payload.records || []) {
+          const records = grouped.get(record.waterRightNo) || [];
+          records.push(record);
+          grouped.set(record.waterRightNo, records);
+        }
+        grouped.forEach((records) => records.sort((a, b) => b.yearMinguo - a.yearMinguo));
+        state.pumpingHistory = grouped;
+        state.pumpingHistoryLoaded = true;
+        return grouped;
+      })
+      .catch((error) => {
+        console.error(error);
+        state.pumpingHistoryLoaded = true;
+        return state.pumpingHistory;
+      });
+  }
+  return pumpingHistoryPromise;
 }
 
 function filterStaticWells(wells, query = {}) {
@@ -301,12 +333,22 @@ async function loadPublicWells(useFilters = false) {
 }
 
 async function showPublicDetail(id) {
-  const well = await api(`/api/public/wells/${id}`);
+  const [well] = await Promise.all([
+    api(`/api/public/wells/${id}`),
+    loadPumpingHistory()
+  ]);
   state.activeWell = well;
+  const historyRecords = state.pumpingHistory.get(well.waterRightNo) || [];
+  const hasHistory = historyRecords.length > 0;
   $("publicDetail").innerHTML = `
     <div class="panel-head">
       <h2>${escapeHtml(well.wellNumber)} ${escapeHtml(well.name)}</h2>
-      <span>${escapeHtml(well.updatedAt?.slice(0, 10) || "")}</span>
+      <div class="detail-head-actions">
+        <button type="button" class="history-open-button" data-pumping-history="${escapeHtml(well.waterRightNo)}" ${hasHistory ? "" : "disabled"}>
+          ${hasHistory ? "歷史抽水紀錄" : "尚無歷史資料"}
+        </button>
+        <span>${escapeHtml(well.updatedAt?.slice(0, 10) || "")}</span>
+      </div>
     </div>
     <div class="detail-split">
       <div class="detail-grid">
@@ -332,6 +374,69 @@ async function showPublicDetail(id) {
   if (marker) {
     focusMarker(marker);
   }
+}
+
+function formatPumpingValue(value) {
+  if (value == null) return "未填報";
+  return `${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(value)} m³`;
+}
+
+function calculateMonthlyWaterRight(record, monthIndex) {
+  const registeredFlowCms = Number(state.activeWell?.registeredFlowCms);
+  if (!Number.isFinite(registeredFlowCms) || registeredFlowCms <= 0) return null;
+  const westernYear = Number(record.yearMinguo) + 1911;
+  const daysInMonth = new Date(westernYear, monthIndex + 1, 0).getDate();
+  return registeredFlowCms * 86400 * daysInMonth;
+}
+
+function renderPumpingHistoryYear(record) {
+  const values = record.monthlyM3 || [];
+  const anomalies = new Map((record.anomalies || []).map((anomaly) => [anomaly.month, anomaly]));
+  const numericValues = values.filter((value) => value != null);
+  const maximum = Math.max(...numericValues, 0);
+  $("pumpingHistorySummary").innerHTML = `
+    <div><span>主管機關</span><strong>${escapeHtml(record.authority)}</strong></div>
+    <div><span>年度合計</span><strong>${formatPumpingValue(record.sourceTotalM3 ?? numericValues.reduce((sum, value) => sum + value, 0))}</strong></div>
+    <div><span>填報月份</span><strong>${numericValues.length} / 12</strong></div>
+  `;
+  $("pumpingHistoryChart").innerHTML = values.map((value, index) => {
+    const anomaly = anomalies.get(index + 1);
+    const percentage = value == null || maximum === 0 ? 0 : Math.max((value / maximum) * 100, value === 0 ? 0 : 3);
+    const stateClass = `${value == null ? " missing" : value === 0 ? " zero" : ""}${anomaly ? " anomaly" : ""}`;
+    const anomalyText = anomaly ? `；疑似異常：${anomaly.reasons.join("、")}` : "";
+    return `
+      <div class="history-bar-item${stateClass}" title="${index + 1}月：${escapeHtml(formatPumpingValue(value))}${escapeHtml(anomalyText)}">
+        <span class="history-bar-value">${value == null ? "--" : new Intl.NumberFormat("zh-TW", { notation: "compact", maximumFractionDigits: 1 }).format(value)}</span>
+        <span class="history-bar-track"><span class="history-bar" style="height:${percentage}%"></span></span>
+        <span class="history-bar-month">${index + 1}月</span>
+      </div>
+    `;
+  }).join("");
+  $("pumpingHistoryRows").innerHTML = values.map((value, index) => {
+    const anomaly = anomalies.get(index + 1);
+    const monthlyWaterRight = calculateMonthlyWaterRight(record, index);
+    return `
+    <tr class="${anomaly ? "anomaly" : ""}" ${anomaly ? `title="疑似異常：${escapeHtml(anomaly.reasons.join("、"))}"` : ""}>
+      <td>${index + 1}月</td>
+      <td class="number-cell">${value == null ? "" : escapeHtml(new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(value))}</td>
+      <td class="number-cell water-right-cell" title="依水權登記量及當月天數換算">${monthlyWaterRight == null ? "" : escapeHtml(new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(monthlyWaterRight))}</td>
+      <td><span class="reporting-status ${value == null ? "missing" : "reported"}">${value == null ? "未填報" : "已填報"}</span></td>
+    </tr>
+  `;
+  }).join("");
+}
+
+function openPumpingHistory(waterRightNo) {
+  const records = state.pumpingHistory.get(waterRightNo) || [];
+  if (!records.length) return;
+  state.activeHistoryWaterRightNo = waterRightNo;
+  const well = state.activeWell;
+  $("pumpingHistoryTitle").textContent = `${well?.wellNumber || waterRightNo} ${well?.name || ""}`;
+  $("pumpingHistoryYear").innerHTML = records
+    .map((record) => `<option value="${record.yearMinguo}">民國${record.yearMinguo}年</option>`)
+    .join("");
+  renderPumpingHistoryYear(records[0]);
+  $("pumpingHistoryDialog").showModal();
 }
 
 function detailItem(label, value) {
@@ -496,9 +601,24 @@ $("publicResults").addEventListener("click", (event) => {
 });
 
 $("publicDetail").addEventListener("click", (event) => {
+  const historyButton = event.target.closest("[data-pumping-history]");
+  if (historyButton && !historyButton.disabled) {
+    openPumpingHistory(historyButton.dataset.pumpingHistory);
+    return;
+  }
   const button = event.target.closest("[data-photo-url]");
   if (!button) return;
   openPhotoLightbox(button.dataset.photoUrl, button.dataset.photoName || "現場照片");
+});
+
+$("pumpingHistoryYear").addEventListener("change", (event) => {
+  const records = state.pumpingHistory.get(state.activeHistoryWaterRightNo) || [];
+  const selected = records.find((record) => record.yearMinguo === Number(event.target.value));
+  if (selected) renderPumpingHistoryYear(selected);
+});
+$("pumpingHistoryClose").addEventListener("click", () => $("pumpingHistoryDialog").close());
+$("pumpingHistoryDialog").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
 });
 
 $("photoLightboxClose").addEventListener("click", () => $("photoLightbox").close());
@@ -540,6 +660,7 @@ if (state.token) {
   $("adminPanel").classList.remove("hidden");
 }
 loadPublicWells();
+loadPumpingHistory();
 if (STATIC_MODE) {
   setInterval(async () => {
     staticWellsCache = null;

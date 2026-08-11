@@ -392,6 +392,10 @@ async function showPublicDetail(id) {
     <div class="detail-split">
       <div class="detail-grid">
         ${detailItem("灌溉系統", well.irrigationSystem)}
+        ${detailItem("經度", Number.isFinite(well.longitude) ? well.longitude : "")}
+        ${detailItem("緯度", Number.isFinite(well.latitude) ? well.latitude : "")}
+        ${detailItem("TWD97 X", well.twd97X)}
+        ${detailItem("TWD97 Y", well.twd97Y)}
         ${detailItem("井深", `${well.depthMeters || 0} m`)}
         ${detailItem("管徑", `${well.diameterMm || 0} mm`)}
         ${detailItem("抽水機馬力", well.pumpHorsepower ? `${well.pumpHorsepower} HP` : "")}

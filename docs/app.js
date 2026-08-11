@@ -409,7 +409,7 @@ async function showPublicDetail(id) {
         ${detailItem("核准水權年限", well.waterRightPeriod)}
         ${detailItem("完工日期", well.completionDate)}
         ${detailItem("用電電號", well.electricityNo)}
-        ${detailItem("農業用電", well.agriculturalPower)}
+        ${detailItem("農業用電", yesNoDisplay(well.agriculturalPower))}
         ${detailItem("狀態", well.status)}
       </div>
       ${renderPhotos(well.photos)}
@@ -489,6 +489,13 @@ function detailItem(label, value) {
     ? value.map((line) => `<span>${escapeHtml(line)}</span>`).join("")
     : escapeHtml(value || "未填");
   return `<div class="detail-item"><strong>${escapeHtml(label)}</strong>${content}</div>`;
+}
+
+function yesNoDisplay(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["有", "是", "true", "1"].includes(normalized)) return "是";
+  if (["無", "否", "false", "0"].includes(normalized)) return "否";
+  return String(value ?? "").trim();
 }
 
 function coordinateText(well) {

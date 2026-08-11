@@ -73,3 +73,31 @@ test("history table shows the monthly water-right volume", async () => {
   assert.match(app, /calculateMonthlyWaterRight/);
   assert.match(app, /registeredFlowCms \* 86400 \* daysInMonth/);
 });
+
+test("river-system filter classifies all wells and cascades station choices", async () => {
+  const [wells, html, app] = await Promise.all([
+    readJson("../docs/data/wells.json"),
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8")
+  ]);
+  const overrides = { B0130304: "大安溪", B1150103: "大甲溪" };
+  const riverNames = ["大甲溪", "大安溪", "烏溪", "大里溪"];
+  const riverSystem = (well) => overrides[well.waterRightNo]
+    || riverNames.find((river) => String(well.irrigationSystem || "").startsWith(river))
+    || "其他";
+  const counts = Object.fromEntries(
+    [...riverNames, "其他"].map((river) => [river, wells.filter((well) => riverSystem(well) === river).length])
+  );
+  const dajiaStations = [...new Set(
+    wells.filter((well) => riverSystem(well) === "大甲溪").map((well) => well.station)
+  )].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+
+  assert.deepEqual(counts, { 大甲溪: 27, 大安溪: 79, 烏溪: 4, 大里溪: 1, 其他: 0 });
+  assert.equal(riverSystem(wells.find((well) => well.waterRightNo === "B0130304")), "大安溪");
+  assert.equal(riverSystem(wells.find((well) => well.waterRightNo === "B1150103")), "大甲溪");
+  assert.deepEqual(dajiaStations, ["八寶", "大安", "大南", "大雅", "屯子腳", "西屯", "沙鹿"]);
+  assert.ok(html.indexOf('id="riverFilter"') < html.indexOf('id="stationFilter"'));
+  assert.ok(html.indexOf('id="stationFilter"') < html.indexOf('id="statusFilter"'));
+  assert.match(app, /function renderStationFilterOptions/);
+  assert.match(app, /function applyPublicFilters/);
+});

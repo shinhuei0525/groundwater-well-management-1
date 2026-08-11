@@ -15,6 +15,11 @@ const state = {
 const STATIC_MODE = location.hostname.endsWith("github.io") || location.protocol === "file:";
 let staticWellsCache = null;
 let pumpingHistoryPromise = null;
+const RIVER_ORDER = ["大甲溪", "大安溪", "烏溪", "大里溪", "其他"];
+const RIVER_OVERRIDES = {
+  B0130304: "大安溪",
+  B1150103: "大甲溪"
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -36,6 +41,12 @@ const fields = [
   "internalNote",
   "isPublic"
 ];
+
+function riverSystem(well) {
+  if (RIVER_OVERRIDES[well.waterRightNo]) return RIVER_OVERRIDES[well.waterRightNo];
+  const irrigationSystem = String(well.irrigationSystem || "");
+  return RIVER_ORDER.find((river) => river !== "其他" && irrigationSystem.startsWith(river)) || "其他";
+}
 
 function api(path, options = {}) {
   if (STATIC_MODE) return staticApi(path, options);
@@ -109,11 +120,13 @@ async function loadPumpingHistory() {
 
 function filterStaticWells(wells, query = {}) {
   const district = String(query.district || "").trim();
+  const river = String(query.river || "").trim();
   const station = String(query.station || "").trim();
   const status = String(query.status || "").trim();
   return wells
     .filter((well) => well.isPublic && well.status !== "停用")
     .filter((well) => !district || well.district === district)
+    .filter((well) => !river || riverSystem(well) === river)
     .filter((well) => !station || well.station === station)
     .filter((well) => !status || well.status === status)
     .map(staticPublicWell);
@@ -231,16 +244,47 @@ function updateMap(wells) {
   }
 }
 
+function fillFilterOptions(id, values, label, preferredValue = "") {
+  const select = $(id);
+  const uniqueValues = [...new Set(values.filter(Boolean))];
+  select.innerHTML = `<option value="">${label}</option>` + uniqueValues
+    .map((value) => `<option>${escapeHtml(value)}</option>`)
+    .join("");
+  select.value = uniqueValues.includes(preferredValue) ? preferredValue : "";
+}
+
+function renderStationFilterOptions(preferredValue = $("stationFilter").value) {
+  const river = $("riverFilter").value;
+  const stations = state.allPublicWells
+    .filter((well) => !river || riverSystem(well) === river)
+    .map((well) => well.station)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  fillFilterOptions("stationFilter", stations, "全部工作站", preferredValue);
+}
+
 function renderFilterOptions() {
-  const fill = (id, values, label) => {
-    const select = $(id);
-    select.innerHTML = `<option value="">${label}</option>` + [...new Set(values.filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, "zh-Hant"))
-      .map((value) => `<option>${escapeHtml(value)}</option>`)
-      .join("");
-  };
-  fill("stationFilter", state.allPublicWells.map((well) => well.station), "全部工作站");
-  fill("statusFilter", [...state.allPublicWells.map((well) => well.status), "故障待修"], "全部狀態");
+  const selectedRiver = $("riverFilter").value;
+  const selectedStation = $("stationFilter").value;
+  const selectedStatus = $("statusFilter").value;
+  const rivers = RIVER_ORDER.filter((river) => state.allPublicWells.some((well) => riverSystem(well) === river));
+  fillFilterOptions("riverFilter", rivers, "全部溪系", selectedRiver);
+  renderStationFilterOptions(selectedStation);
+  const statuses = [...new Set([...state.allPublicWells.map((well) => well.status), "故障待修"].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "zh-Hant"));
+  fillFilterOptions("statusFilter", statuses, "全部狀態", selectedStatus);
+}
+
+function applyPublicFilters() {
+  const river = $("riverFilter").value;
+  const station = $("stationFilter").value;
+  const status = $("statusFilter").value;
+  state.publicWells = state.allPublicWells.filter((well) =>
+    (!river || riverSystem(well) === river)
+    && (!station || well.station === station)
+    && (!status || well.status === status)
+  );
+  renderCurrentPublicResults();
 }
 
 function waterRightEndDate(period) {
@@ -283,6 +327,7 @@ function renderCurrentPublicResults() {
   button.textContent = `水權期限即將到期 ${expiring.length} 筆`;
   button.setAttribute("aria-pressed", String(state.expiringOnly));
   basicButton.setAttribute("aria-pressed", String(!state.expiringOnly));
+  $("riverFilter").disabled = state.expiringOnly;
   $("stationFilter").disabled = state.expiringOnly;
   $("statusFilter").disabled = state.expiringOnly;
   $("resultTitle").textContent = state.expiringOnly ? "水權即將到期" : "查詢結果";
@@ -318,18 +363,12 @@ function renderPublicList(wells) {
 }
 
 async function loadPublicWells(useFilters = false) {
-  const params = new URLSearchParams();
-  if (useFilters) {
-    params.set("station", $("stationFilter").value);
-    params.set("status", $("statusFilter").value);
-  }
-  const wells = await api(`/api/public/wells?${params}`);
-  state.publicWells = wells;
   if (!useFilters) {
+    const wells = await api("/api/public/wells");
     state.allPublicWells = wells;
     renderFilterOptions();
   }
-  renderCurrentPublicResults();
+  applyPublicFilters();
 }
 
 async function showPublicDetail(id) {
@@ -568,10 +607,15 @@ document.querySelectorAll(".nav-btn").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
+$("riverFilter").addEventListener("change", () => {
+  state.expiringOnly = false;
+  renderStationFilterOptions();
+  applyPublicFilters();
+});
 ["stationFilter", "statusFilter"].forEach((id) => {
   $(id).addEventListener("change", () => {
     state.expiringOnly = false;
-    loadPublicWells(true);
+    applyPublicFilters();
   });
 });
 $("expiringFilterButton").addEventListener("click", () => {
@@ -664,6 +708,6 @@ loadPumpingHistory();
 if (STATIC_MODE) {
   setInterval(async () => {
     staticWellsCache = null;
-    await loadPublicWells(true);
+    await loadPublicWells();
   }, 5 * 60 * 1000);
 }

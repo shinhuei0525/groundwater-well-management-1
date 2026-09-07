@@ -606,6 +606,7 @@ def main() -> int:
     parser.add_argument("--service-account", required=True, type=Path)
     parser.add_argument("--sync-scope", default="all", choices=["all", "wells", "pumping"])
     parser.add_argument("--groundwater-root-folder-id", required=True)
+    parser.add_argument("--registry-folder-id", default="")
     parser.add_argument("--well-index-folder-id", required=True)
     parser.add_argument("--pumping-index-folder-id", required=True)
     parser.add_argument("--water-right-folder-id", required=True)
@@ -626,7 +627,8 @@ def main() -> int:
     previous_sync = read_json_if_exists(sync_index_path, {}) if previous_sync_exists else {}
 
     root_files = list_tree(service, args.groundwater_root_folder_id)
-    registry_file = newest_file(root_files, is_registry_candidate)
+    registry_files = list_tree(service, args.registry_folder_id) if args.registry_folder_id else root_files
+    registry_file = newest_file(registry_files, is_registry_candidate)
     if not registry_file and args.sync_scope in {"all", "wells"}:
         raise RuntimeError("No groundwater registry Excel candidate found in Drive")
 
@@ -702,6 +704,7 @@ def main() -> int:
         "syncScope": args.sync_scope,
         "sources": {
             "registryExcel": file_metadata_state(registry_file) if registry_file else {},
+            "registryFolderId": args.registry_folder_id or args.groundwater_root_folder_id,
             "waterRightFolderId": args.water_right_folder_id,
             "groundwaterRootFolderId": args.groundwater_root_folder_id,
         },

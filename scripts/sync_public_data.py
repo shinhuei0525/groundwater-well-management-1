@@ -306,13 +306,28 @@ def file_hash(path: Path) -> str:
 
 
 def file_state(path: Path) -> dict:
+    if not path.exists():
+        return {
+            "path": str(path),
+            "exists": False,
+            "size": 0,
+            "modifiedAt": "",
+            "sha256": "",
+        }
     stat = path.stat()
     return {
         "path": str(path),
+        "exists": True,
         "size": stat.st_size,
         "modifiedAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
         "sha256": file_hash(path),
     }
+
+
+def read_json(path: Path, default):
+    if not path.exists():
+        return default
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def write_summary(path: Path, well_summary: dict, pumping_payload: dict) -> None:
@@ -353,10 +368,10 @@ def main() -> int:
     args = parser.parse_args()
 
     today = date.fromisoformat(args.today)
-    well_index = json.loads(args.well_index.read_text(encoding="utf-8"))
-    site_wells = json.loads(args.site_wells.read_text(encoding="utf-8"))
-    pumping_index = json.loads(args.pumping_index.read_text(encoding="utf-8"))
-    site_pumping_history = json.loads(args.site_pumping_history.read_text(encoding="utf-8"))
+    well_index = read_json(args.well_index, [])
+    site_wells = read_json(args.site_wells, [])
+    pumping_index = read_json(args.pumping_index, [])
+    site_pumping_history = read_json(args.site_pumping_history, {})
 
     merged_wells, well_summary = merge_wells(site_wells, well_index, today, args.expiration_warning_days)
     pumping_payload = build_pumping_history(site_pumping_history, pumping_index)

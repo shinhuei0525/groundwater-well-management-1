@@ -31,11 +31,11 @@ jobs:
 
     env:
       SYNC_SCOPE: ${{ github.event.client_payload.syncScope || inputs.sync_scope || 'all' }}
-      GROUNDWATER_ROOT_FOLDER_ID: ${{ github.event.client_payload.drive.groundwaterRootFolderId || vars.GROUNDWATER_ROOT_FOLDER_ID || '10ntiTPQl7190Tcmim_oTPDIs1eCDTctq' }}
-      REGISTRY_FOLDER_ID: ${{ github.event.client_payload.drive.registryFolderId || vars.REGISTRY_FOLDER_ID || '1ZwNZHe0JslvSY62ZAX2BvwPGTPosdz9d' }}
-      WELL_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.wellIndexFolderId || vars.WELL_INDEX_FOLDER_ID || '16GN_DaR8slqnWH3d57l-jM-BLMAgDUsG' }}
-      PUMPING_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.pumpingIndexFolderId || vars.PUMPING_INDEX_FOLDER_ID || '1DsnG04mvDZ4r01opr0i-wcFbqAd_FiOV' }}
-      WATER_RIGHT_FOLDER_ID: ${{ github.event.client_payload.drive.waterRightFolderId || vars.WATER_RIGHT_FOLDER_ID || '193PcI2sW9IleuMYdtqE3h_aEj8aKx3K5' }}
+      GROUNDWATER_ROOT_FOLDER_ID: ${{ github.event.client_payload.drive.groundwaterRootFolderId || vars.GROUNDWATER_ROOT_FOLDER_ID || '1TLw8JdrVw_OagddkzZz96effiJ51q3F5' }}
+      REGISTRY_FOLDER_ID: ${{ github.event.client_payload.drive.registryFolderId || vars.REGISTRY_FOLDER_ID || '' }}
+      WELL_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.wellIndexFolderId || vars.WELL_INDEX_FOLDER_ID || '' }}
+      PUMPING_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.pumpingIndexFolderId || vars.PUMPING_INDEX_FOLDER_ID || '' }}
+      WATER_RIGHT_FOLDER_ID: ${{ github.event.client_payload.drive.waterRightFolderId || vars.WATER_RIGHT_FOLDER_ID || '' }}
       EXPIRATION_WARNING_DAYS: 90
 
     steps:

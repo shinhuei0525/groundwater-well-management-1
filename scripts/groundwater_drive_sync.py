@@ -23,7 +23,8 @@ from pathlib import Path
 from typing import Any
 
 DRIVE_FIELDS = (
-    "files(id,name,mimeType,modifiedTime,size,md5Checksum,parents,webViewLink),"
+    "files(id,name,mimeType,modifiedTime,size,md5Checksum,parents,webViewLink,"
+    "shortcutDetails(targetId,targetMimeType)),"
     "nextPageToken"
 )
 
@@ -44,6 +45,9 @@ EXCEL_MIME_TYPES = {
     "application/vnd.ms-excel",
     "application/vnd.google-apps.spreadsheet",
 }
+
+FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+SHORTCUT_MIME_TYPE = "application/vnd.google-apps.shortcut"
 
 
 def normalize_text(value: object) -> str:
@@ -148,6 +152,15 @@ def list_children(service, folder_id: str) -> list[dict[str, Any]]:
             return files
 
 
+def folder_target_id(item: dict[str, Any]) -> str:
+    if item.get("mimeType") == FOLDER_MIME_TYPE:
+        return item.get("id", "")
+    shortcut = item.get("shortcutDetails") or {}
+    if item.get("mimeType") == SHORTCUT_MIME_TYPE and shortcut.get("targetMimeType") == FOLDER_MIME_TYPE:
+        return shortcut.get("targetId", "")
+    return ""
+
+
 def can_list_folder(service, folder_id: str) -> bool:
     if not folder_id:
         return False
@@ -168,8 +181,9 @@ def list_tree(service, folder_id: str) -> list[dict[str, Any]]:
         seen_folders.add(current_folder_id)
         for item in list_children(service, current_folder_id):
             found.append(item)
-            if item.get("mimeType") == "application/vnd.google-apps.folder":
-                visit(item["id"])
+            child_folder_id = folder_target_id(item)
+            if child_folder_id:
+                visit(child_folder_id)
 
     visit(folder_id)
     return found
@@ -194,12 +208,11 @@ def resolve_child_folder_id(
         matches = [
             item
             for item in root_children
-            if item.get("mimeType") == "application/vnd.google-apps.folder"
-            and normalize_text(item.get("name")) == expected_name
+            if folder_target_id(item) and normalize_text(item.get("name")) == expected_name
         ]
         if matches:
             matches.sort(key=lambda item: item.get("modifiedTime", ""), reverse=True)
-            resolved = matches[0]["id"]
+            resolved = folder_target_id(matches[0])
             if configured_folder_id:
                 notes.append(
                     f"Configured folder {configured_folder_id} was not accessible; resolved {expected_name} under root."
@@ -209,8 +222,13 @@ def resolve_child_folder_id(
             return resolved
 
     configured_message = f" configured id {configured_folder_id}" if configured_folder_id else ""
+    visible_children = ", ".join(
+        f"{normalize_text(item.get('name')) or '(unnamed)'} [{item.get('mimeType')}]"
+        for item in root_children[:20]
+    )
     raise RuntimeError(
-        f"Cannot resolve Drive folder{configured_message}; expected one of: {', '.join(expected_names)}"
+        f"Cannot resolve Drive folder{configured_message}; expected one of: {', '.join(expected_names)}; "
+        f"visible root children: {visible_children or '(none)'}"
     )
 
 

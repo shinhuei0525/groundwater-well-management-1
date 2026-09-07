@@ -21,11 +21,11 @@ const DEFAULT_TRIGGER_HOUR = 6;
 const DEFAULT_TRIGGER_WEEKDAY = ScriptApp.WeekDay.MONDAY;
 
 const DEFAULT_DRIVE_IDS = {
-  groundwaterRootFolderId: '10ntiTPQl7190Tcmim_oTPDIs1eCDTctq',
-  registryFolderId: '1ZwNZHe0JslvSY62ZAX2BvwPGTPosdz9d',
-  wellIndexFolderId: '16GN_DaR8slqnWH3d57l-jM-BLMAgDUsG',
-  pumpingIndexFolderId: '1DsnG04mvDZ4r01opr0i-wcFbqAd_FiOV',
-  waterRightFolderId: '193PcI2sW9IleuMYdtqE3h_aEj8aKx3K5',
+  groundwaterRootFolderId: '1TLw8JdrVw_OagddkzZz96effiJ51q3F5',
+  registryFolderId: '',
+  wellIndexFolderId: '',
+  pumpingIndexFolderId: '',
+  waterRightFolderId: '',
 };
 
 function triggerGroundwaterSync() {

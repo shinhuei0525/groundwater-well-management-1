@@ -20,11 +20,11 @@
 | `GITHUB_OWNER` | 是 | repository owner，例如 `wushinhuei`。 |
 | `GITHUB_REPO` | 是 | repository 名稱，例如 `groundwater-well-management`。 |
 | `GITHUB_EVENT_TYPE` | 否 | 預設 `groundwater-sync`。 |
-| `GROUNDWATER_ROOT_FOLDER_ID` | 否 | Drive 專案根目錄。預設已填入目前資料夾 id。 |
-| `REGISTRY_FOLDER_ID` | 否 | `抽水井一覽表` 資料夾；放原始 Excel 一覽表。 |
-| `WELL_INDEX_FOLDER_ID` | 否 | `00_系統索引資料` 資料夾。 |
-| `PUMPING_INDEX_FOLDER_ID` | 否 | `00_系統索引資料/抽水紀錄` 資料夾。 |
-| `WATER_RIGHT_FOLDER_ID` | 否 | `02_現行有效` 水權狀資料夾。 |
+| `GROUNDWATER_ROOT_FOLDER_ID` | 否 | `shinhuei0928307617@gmail.com` 的 `農業用水資料統計` 根目錄。 |
+| `REGISTRY_FOLDER_ID` | 否 | 可留空；程式會從根目錄尋找 `抽水井一覽表`。 |
+| `WELL_INDEX_FOLDER_ID` | 否 | 可留空；程式會從根目錄尋找 `00_系統索引資料`。 |
+| `PUMPING_INDEX_FOLDER_ID` | 否 | 可留空；目前共用 `00_系統索引資料`。 |
+| `WATER_RIGHT_FOLDER_ID` | 否 | 可留空；程式會從根目錄尋找 `地下水水權狀`。 |
 
 第一次設定後，手動執行一次 `installWeeklyTrigger()`，授權完成後會建立每週一 06:00 的排程。若要立即測試，執行 `testTriggerGroundwaterSync()`。
 
@@ -42,11 +42,11 @@
 
 | 名稱 | 目前建議值 |
 | --- | --- |
-| `GROUNDWATER_ROOT_FOLDER_ID` | `10ntiTPQl7190Tcmim_oTPDIs1eCDTctq` |
-| `REGISTRY_FOLDER_ID` | `1ZwNZHe0JslvSY62ZAX2BvwPGTPosdz9d` |
-| `WELL_INDEX_FOLDER_ID` | `16GN_DaR8slqnWH3d57l-jM-BLMAgDUsG` |
-| `PUMPING_INDEX_FOLDER_ID` | `1DsnG04mvDZ4r01opr0i-wcFbqAd_FiOV` |
-| `WATER_RIGHT_FOLDER_ID` | `193PcI2sW9IleuMYdtqE3h_aEj8aKx3K5` |
+| `GROUNDWATER_ROOT_FOLDER_ID` | `1TLw8JdrVw_OagddkzZz96effiJ51q3F5` |
+| `REGISTRY_FOLDER_ID` | 留空 |
+| `WELL_INDEX_FOLDER_ID` | 留空 |
+| `PUMPING_INDEX_FOLDER_ID` | 留空 |
+| `WATER_RIGHT_FOLDER_ID` | 留空 |
 
 ## Repository 內需要的同步程式
 

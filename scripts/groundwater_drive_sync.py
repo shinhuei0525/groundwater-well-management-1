@@ -152,6 +152,31 @@ def list_children(service, folder_id: str) -> list[dict[str, Any]]:
             return files
 
 
+def escape_drive_query_text(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def search_folders_by_name(service, name: str) -> list[dict[str, Any]]:
+    escaped_name = escape_drive_query_text(name)
+    folder_types = [FOLDER_MIME_TYPE, SHORTCUT_MIME_TYPE]
+    mime_filter = " or ".join(f"mimeType='{mime_type}'" for mime_type in folder_types)
+    files: list[dict[str, Any]] = []
+    page_token = None
+    while True:
+        response = service.files().list(
+            q=f"name='{escaped_name}' and trashed=false and ({mime_filter})",
+            fields=DRIVE_FIELDS,
+            pageToken=page_token,
+            pageSize=100,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
+        files.extend(response.get("files", []))
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            return files
+
+
 def folder_target_id(item: dict[str, Any]) -> str:
     if item.get("mimeType") == FOLDER_MIME_TYPE:
         return item.get("id", "")
@@ -219,6 +244,16 @@ def resolve_child_folder_id(
                 )
             else:
                 notes.append(f"Resolved {expected_name} under root.")
+            return resolved
+
+    for expected_name in expected_names:
+        matches = [item for item in search_folders_by_name(service, expected_name) if folder_target_id(item)]
+        if matches:
+            matches.sort(key=lambda item: item.get("modifiedTime", ""), reverse=True)
+            resolved = folder_target_id(matches[0])
+            notes.append(
+                f"Resolved {expected_name} by global Drive search because root {root_folder_id} listed no matching child."
+            )
             return resolved
 
     configured_message = f" configured id {configured_folder_id}" if configured_folder_id else ""

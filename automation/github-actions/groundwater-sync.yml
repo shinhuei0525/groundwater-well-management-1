@@ -1,0 +1,131 @@
+name: Groundwater public data sync
+
+on:
+  repository_dispatch:
+    types:
+      - groundwater-sync
+  workflow_dispatch:
+    inputs:
+      sync_scope:
+        description: Sync scope
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - wells
+          - pumping
+
+permissions:
+  contents: write
+
+concurrency:
+  group: groundwater-public-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync Drive data to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      SYNC_SCOPE: ${{ github.event.client_payload.syncScope || inputs.sync_scope || 'all' }}
+      GROUNDWATER_ROOT_FOLDER_ID: ${{ github.event.client_payload.drive.groundwaterRootFolderId || vars.GROUNDWATER_ROOT_FOLDER_ID || '10ntiTPQl7190Tcmim_oTPDIs1eCDTctq' }}
+      WELL_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.wellIndexFolderId || vars.WELL_INDEX_FOLDER_ID || '16GN_DaR8slqnWH3d57l-jM-BLMAgDUsG' }}
+      PUMPING_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.pumpingIndexFolderId || vars.PUMPING_INDEX_FOLDER_ID || '1DsnG04mvDZ4r01opr0i-wcFbqAd_FiOV' }}
+      WATER_RIGHT_FOLDER_ID: ${{ github.event.client_payload.drive.waterRightFolderId || vars.WATER_RIGHT_FOLDER_ID || '193PcI2sW9IleuMYdtqE3h_aEj8aKx3K5' }}
+      EXPIRATION_WARNING_DAYS: 90
+
+    steps:
+      - name: Checkout public site repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install sync dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install openpyxl google-api-python-client google-auth
+
+      - name: Write Google service account key
+        shell: bash
+        run: |
+          test -n "$GOOGLE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/google-service-account.json"
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Fetch Drive sources and update Drive indexes
+        shell: bash
+        run: |
+          python scripts/groundwater_drive_sync.py \
+            --service-account "$RUNNER_TEMP/google-service-account.json" \
+            --sync-scope "$SYNC_SCOPE" \
+            --groundwater-root-folder-id "$GROUNDWATER_ROOT_FOLDER_ID" \
+            --well-index-folder-id "$WELL_INDEX_FOLDER_ID" \
+            --pumping-index-folder-id "$PUMPING_INDEX_FOLDER_ID" \
+            --water-right-folder-id "$WATER_RIGHT_FOLDER_ID" \
+            --work-dir "$RUNNER_TEMP/groundwater-sync"
+
+      - name: Build public JSON from indexes
+        shell: bash
+        run: |
+          if [ -f scripts/sync_public_data.py ]; then
+            PUBLIC_SYNC_SCRIPT=scripts/sync_public_data.py
+          else
+            PUBLIC_SYNC_SCRIPT=work/sync_public_data.py
+          fi
+          python "$PUBLIC_SYNC_SCRIPT" \
+            --well-index "$RUNNER_TEMP/groundwater-sync/well-index.json" \
+            --site-wells public/data/wells.json \
+            --pumping-index "$RUNNER_TEMP/groundwater-sync/pumping-index.json" \
+            --site-pumping-history public/data/pumping-history.json \
+            --out-dir "$RUNNER_TEMP/public-sync" \
+            --expiration-warning-days "$EXPIRATION_WARNING_DAYS"
+
+      - name: Copy generated public files
+        shell: bash
+        run: |
+          mkdir -p public/data docs/data sync-reports
+          cp "$RUNNER_TEMP/public-sync/data/wells.json" public/data/wells.json
+          cp "$RUNNER_TEMP/public-sync/data/pumping-history.json" public/data/pumping-history.json
+          cp "$RUNNER_TEMP/public-sync/data/wells.json" docs/data/wells.json
+          cp "$RUNNER_TEMP/public-sync/data/pumping-history.json" docs/data/pumping-history.json
+          cp "$RUNNER_TEMP/public-sync/sync-index.json" sync-reports/sync-index.json
+          cp "$RUNNER_TEMP/public-sync/sync-summary.json" sync-reports/sync-summary.json
+          cp "$RUNNER_TEMP/public-sync/sync-summary.md" sync-reports/sync-summary.md
+
+      - name: Stop when nothing changed
+        id: diff
+        shell: bash
+        run: |
+          if git diff --quiet -- public/data docs/data sync-reports; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit generated public data
+        if: steps.diff.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "groundwater-sync-bot"
+          git config user.email "groundwater-sync-bot@users.noreply.github.com"
+          git add public/data docs/data sync-reports
+          git commit -m "Update groundwater public data"
+          git push
+
+      - name: Upload sync report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: groundwater-sync-report
+          path: |
+            ${{ runner.temp }}/public-sync/sync-summary.md
+            ${{ runner.temp }}/public-sync/sync-summary.json
+            ${{ runner.temp }}/public-sync/sync-index.json
+          if-no-files-found: ignore

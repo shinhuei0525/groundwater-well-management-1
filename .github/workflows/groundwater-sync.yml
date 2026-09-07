@@ -31,10 +31,10 @@ jobs:
 
     env:
       SYNC_SCOPE: ${{ github.event.client_payload.syncScope || inputs.sync_scope || 'all' }}
-      GROUNDWATER_ROOT_FOLDER_ID: ${{ github.event.client_payload.drive.groundwaterRootFolderId || vars.GROUNDWATER_ROOT_FOLDER_ID }}
-      WELL_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.wellIndexFolderId || vars.WELL_INDEX_FOLDER_ID }}
-      PUMPING_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.pumpingIndexFolderId || vars.PUMPING_INDEX_FOLDER_ID }}
-      WATER_RIGHT_FOLDER_ID: ${{ github.event.client_payload.drive.waterRightFolderId || vars.WATER_RIGHT_FOLDER_ID }}
+      GROUNDWATER_ROOT_FOLDER_ID: ${{ github.event.client_payload.drive.groundwaterRootFolderId || vars.GROUNDWATER_ROOT_FOLDER_ID || '10ntiTPQl7190Tcmim_oTPDIs1eCDTctq' }}
+      WELL_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.wellIndexFolderId || vars.WELL_INDEX_FOLDER_ID || '16GN_DaR8slqnWH3d57l-jM-BLMAgDUsG' }}
+      PUMPING_INDEX_FOLDER_ID: ${{ github.event.client_payload.drive.pumpingIndexFolderId || vars.PUMPING_INDEX_FOLDER_ID || '1DsnG04mvDZ4r01opr0i-wcFbqAd_FiOV' }}
+      WATER_RIGHT_FOLDER_ID: ${{ github.event.client_payload.drive.waterRightFolderId || vars.WATER_RIGHT_FOLDER_ID || '193PcI2sW9IleuMYdtqE3h_aEj8aKx3K5' }}
       EXPIRATION_WARNING_DAYS: 90
 
     steps:
@@ -81,18 +81,20 @@ jobs:
           fi
           python "$PUBLIC_SYNC_SCRIPT" \
             --well-index "$RUNNER_TEMP/groundwater-sync/well-index.json" \
-            --site-wells data/wells.json \
+            --site-wells public/data/wells.json \
             --pumping-index "$RUNNER_TEMP/groundwater-sync/pumping-index.json" \
-            --site-pumping-history data/pumping-history.json \
+            --site-pumping-history public/data/pumping-history.json \
             --out-dir "$RUNNER_TEMP/public-sync" \
             --expiration-warning-days "$EXPIRATION_WARNING_DAYS"
 
       - name: Copy generated public files
         shell: bash
         run: |
-          mkdir -p data sync-reports
-          cp "$RUNNER_TEMP/public-sync/data/wells.json" data/wells.json
-          cp "$RUNNER_TEMP/public-sync/data/pumping-history.json" data/pumping-history.json
+          mkdir -p public/data docs/data sync-reports
+          cp "$RUNNER_TEMP/public-sync/data/wells.json" public/data/wells.json
+          cp "$RUNNER_TEMP/public-sync/data/pumping-history.json" public/data/pumping-history.json
+          cp "$RUNNER_TEMP/public-sync/data/wells.json" docs/data/wells.json
+          cp "$RUNNER_TEMP/public-sync/data/pumping-history.json" docs/data/pumping-history.json
           cp "$RUNNER_TEMP/public-sync/sync-index.json" sync-reports/sync-index.json
           cp "$RUNNER_TEMP/public-sync/sync-summary.json" sync-reports/sync-summary.json
           cp "$RUNNER_TEMP/public-sync/sync-summary.md" sync-reports/sync-summary.md
@@ -101,7 +103,7 @@ jobs:
         id: diff
         shell: bash
         run: |
-          if git diff --quiet -- data sync-reports; then
+          if git diff --quiet -- public/data docs/data sync-reports; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -113,7 +115,7 @@ jobs:
         run: |
           git config user.name "groundwater-sync-bot"
           git config user.email "groundwater-sync-bot@users.noreply.github.com"
-          git add data sync-reports
+          git add public/data docs/data sync-reports
           git commit -m "Update groundwater public data"
           git push
 

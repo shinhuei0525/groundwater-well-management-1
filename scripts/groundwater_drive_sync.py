@@ -148,6 +148,16 @@ def list_children(service, folder_id: str) -> list[dict[str, Any]]:
             return files
 
 
+def can_list_folder(service, folder_id: str) -> bool:
+    if not folder_id:
+        return False
+    try:
+        list_children(service, folder_id)
+    except Exception:
+        return False
+    return True
+
+
 def list_tree(service, folder_id: str) -> list[dict[str, Any]]:
     seen_folders: set[str] = set()
     found: list[dict[str, Any]] = []
@@ -163,6 +173,45 @@ def list_tree(service, folder_id: str) -> list[dict[str, Any]]:
 
     visit(folder_id)
     return found
+
+
+def resolve_child_folder_id(
+    service,
+    root_folder_id: str,
+    configured_folder_id: str,
+    expected_names: list[str],
+    notes: list[str],
+) -> str:
+    root_children = list_children(service, root_folder_id)
+    if configured_folder_id and can_list_folder(service, configured_folder_id):
+        if any(item.get("id") == configured_folder_id for item in root_children):
+            return configured_folder_id
+        notes.append(
+            f"Configured folder {configured_folder_id} is accessible but is not under root {root_folder_id}; resolving by name."
+        )
+
+    for expected_name in expected_names:
+        matches = [
+            item
+            for item in root_children
+            if item.get("mimeType") == "application/vnd.google-apps.folder"
+            and normalize_text(item.get("name")) == expected_name
+        ]
+        if matches:
+            matches.sort(key=lambda item: item.get("modifiedTime", ""), reverse=True)
+            resolved = matches[0]["id"]
+            if configured_folder_id:
+                notes.append(
+                    f"Configured folder {configured_folder_id} was not accessible; resolved {expected_name} under root."
+                )
+            else:
+                notes.append(f"Resolved {expected_name} under root.")
+            return resolved
+
+    configured_message = f" configured id {configured_folder_id}" if configured_folder_id else ""
+    raise RuntimeError(
+        f"Cannot resolve Drive folder{configured_message}; expected one of: {', '.join(expected_names)}"
+    )
 
 
 def newest_file(files: list[dict[str, Any]], predicate) -> dict[str, Any] | None:
@@ -261,6 +310,18 @@ def upload_or_update(service, folder_id: str, path: Path, mime_type: str | None 
         fields=fields,
         supportsAllDrives=True,
     ).execute()
+
+
+def upload_indexes(service, folder_id: str, names: list[str], work_dir: Path, label: str, notes: list[str]) -> None:
+    for name in names:
+        path = work_dir / name
+        if not path.exists():
+            continue
+        try:
+            upload_or_update(service, folder_id, path)
+        except Exception as exc:
+            notes.append(f"Could not upload {label} index {name} to Drive folder {folder_id}: {exc}")
+            print(f"warning: could not upload {label} index {name}: {exc}", file=sys.stderr)
 
 
 def find_header_row(sheet, required: set[str], max_scan: int = 20) -> tuple[int, dict[str, int]]:
@@ -607,9 +668,9 @@ def main() -> int:
     parser.add_argument("--sync-scope", default="all", choices=["all", "wells", "pumping"])
     parser.add_argument("--groundwater-root-folder-id", required=True)
     parser.add_argument("--registry-folder-id", default="")
-    parser.add_argument("--well-index-folder-id", required=True)
-    parser.add_argument("--pumping-index-folder-id", required=True)
-    parser.add_argument("--water-right-folder-id", required=True)
+    parser.add_argument("--well-index-folder-id", default="")
+    parser.add_argument("--pumping-index-folder-id", default="")
+    parser.add_argument("--water-right-folder-id", default="")
     parser.add_argument("--work-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -617,17 +678,46 @@ def main() -> int:
     service = drive_service(args.service_account)
     notes: list[str] = []
 
+    registry_folder_id = resolve_child_folder_id(
+        service,
+        args.groundwater_root_folder_id,
+        args.registry_folder_id,
+        ["抽水井一覽表"],
+        notes,
+    )
+    well_index_folder_id = resolve_child_folder_id(
+        service,
+        args.groundwater_root_folder_id,
+        args.well_index_folder_id,
+        ["00_系統索引資料", "00_系統索引"],
+        notes,
+    )
+    pumping_index_folder_id = resolve_child_folder_id(
+        service,
+        args.groundwater_root_folder_id,
+        args.pumping_index_folder_id,
+        ["00_系統索引資料", "00_系統索引"],
+        notes,
+    )
+    water_right_folder_id = resolve_child_folder_id(
+        service,
+        args.groundwater_root_folder_id,
+        args.water_right_folder_id,
+        ["地下水水權狀", "02_現行有效"],
+        notes,
+    )
+
     sync_index_path = args.work_dir / INDEX_FILENAMES["sync"]
     previous_sync_exists = download_index_if_exists(
         service,
-        args.well_index_folder_id,
+        well_index_folder_id,
         INDEX_FILENAMES["sync"],
         sync_index_path,
     )
     previous_sync = read_json_if_exists(sync_index_path, {}) if previous_sync_exists else {}
 
     root_files = list_tree(service, args.groundwater_root_folder_id)
-    registry_files = list_tree(service, args.registry_folder_id) if args.registry_folder_id else root_files
+    registry_files = list_tree(service, registry_folder_id)
     registry_file = newest_file(registry_files, is_registry_candidate)
     if not registry_file and args.sync_scope in {"all", "wells"}:
         raise RuntimeError("No groundwater registry Excel candidate found in Drive")
@@ -649,7 +739,7 @@ def main() -> int:
         else:
             notes.append("Registry Excel metadata unchanged; reused Drive-stored well indexes.")
             for name in [INDEX_FILENAMES["well"], INDEX_FILENAMES["station"], INDEX_FILENAMES["wellWarnings"]]:
-                if not download_index_if_exists(service, args.well_index_folder_id, name, args.work_dir / name):
+                if not download_index_if_exists(service, well_index_folder_id, name, args.work_dir / name):
                     raise RuntimeError(f"Registry unchanged but missing Drive index file: {name}")
             well_records = read_json_if_exists(args.work_dir / INDEX_FILENAMES["well"], [])
             station_records = read_json_if_exists(args.work_dir / INDEX_FILENAMES["station"], {})
@@ -657,11 +747,11 @@ def main() -> int:
                 well_warnings = list(csv.DictReader(fh))
     else:
         for name in [INDEX_FILENAMES["well"], INDEX_FILENAMES["station"], INDEX_FILENAMES["wellWarnings"]]:
-            download_index_if_exists(service, args.well_index_folder_id, name, args.work_dir / name)
+            download_index_if_exists(service, well_index_folder_id, name, args.work_dir / name)
         well_records = read_json_if_exists(args.work_dir / INDEX_FILENAMES["well"], [])
         station_records = read_json_if_exists(args.work_dir / INDEX_FILENAMES["station"], {})
 
-    water_right_files = list_tree(service, args.water_right_folder_id)
+    water_right_files = list_tree(service, water_right_folder_id)
     attachment_records, attachment_warnings = water_right_attachment_index(water_right_files)
     write_json(args.work_dir / INDEX_FILENAMES["attachments"], attachment_records)
     if attachment_warnings:
@@ -684,7 +774,7 @@ def main() -> int:
         for name in [INDEX_FILENAMES["pumping"], INDEX_FILENAMES["pumpingMonth"], INDEX_FILENAMES["pumpingWarnings"]]:
             path = args.work_dir / name
             if not path.exists():
-                download_index_if_exists(service, args.pumping_index_folder_id, name, path)
+                download_index_if_exists(service, pumping_index_folder_id, name, path)
         existing_pumping = read_json_if_exists(args.work_dir / INDEX_FILENAMES["pumping"], [])
         existing_monthly = read_json_if_exists(args.work_dir / INDEX_FILENAMES["pumpingMonth"], [])
         existing_warnings = read_json_if_exists(args.work_dir / INDEX_FILENAMES["pumpingWarnings"], [])
@@ -695,7 +785,7 @@ def main() -> int:
         }
     else:
         for name in [INDEX_FILENAMES["pumping"], INDEX_FILENAMES["pumpingMonth"], INDEX_FILENAMES["pumpingWarnings"]]:
-            download_index_if_exists(service, args.pumping_index_folder_id, name, args.work_dir / name)
+            download_index_if_exists(service, pumping_index_folder_id, name, args.work_dir / name)
 
     generated_at = datetime.now(timezone.utc).isoformat()
     sync_index = {
@@ -704,9 +794,11 @@ def main() -> int:
         "syncScope": args.sync_scope,
         "sources": {
             "registryExcel": file_metadata_state(registry_file) if registry_file else {},
-            "registryFolderId": args.registry_folder_id or args.groundwater_root_folder_id,
-            "waterRightFolderId": args.water_right_folder_id,
+            "registryFolderId": registry_folder_id,
+            "waterRightFolderId": water_right_folder_id,
             "groundwaterRootFolderId": args.groundwater_root_folder_id,
+            "wellIndexFolderId": well_index_folder_id,
+            "pumpingIndexFolderId": pumping_index_folder_id,
         },
         "outputs": {
             "wellRecords": len(well_records),
@@ -746,20 +838,14 @@ def main() -> int:
         INDEX_FILENAMES["sync"],
         INDEX_FILENAMES["summary"],
     ]
-    for name in well_uploads:
-        path = args.work_dir / name
-        if path.exists():
-            upload_or_update(service, args.well_index_folder_id, path)
+    upload_indexes(service, well_index_folder_id, well_uploads, args.work_dir, "well", notes)
 
     pumping_uploads = [
         INDEX_FILENAMES["pumping"],
         INDEX_FILENAMES["pumpingMonth"],
         INDEX_FILENAMES["pumpingWarnings"],
     ]
-    for name in pumping_uploads:
-        path = args.work_dir / name
-        if path.exists():
-            upload_or_update(service, args.pumping_index_folder_id, path)
+    upload_indexes(service, pumping_index_folder_id, pumping_uploads, args.work_dir, "pumping", notes)
 
     print(json.dumps(summary, ensure_ascii=False))
     return 0
